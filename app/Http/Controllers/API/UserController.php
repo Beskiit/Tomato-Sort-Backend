@@ -28,7 +28,7 @@ class UserController extends Controller
             'role'           => 'required|in:farmer,sorter,admin',
             'farm_name'      => 'required_if:role,farmer|string|max:150',
             'address'        => 'nullable|string',
-            'location'       => 'required_if:role,sorter|string|max:200',
+            'location' => 'nullable|required_if:role,sorter|string|max:200',
             'contact_number' => 'nullable|string|max:20',
         ]);
 
