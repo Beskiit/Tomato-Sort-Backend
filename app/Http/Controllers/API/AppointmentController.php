@@ -5,13 +5,14 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\Notification;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 
 class AppointmentController extends Controller
 {
     public function index(Request $request)
     {
-        $user = $request->user();
+        $user  = $request->user();
         $query = Appointment::with(['farmer.user', 'sorter.user', 'sortingSession']);
 
         if ($user->role === 'farmer') {
@@ -19,11 +20,8 @@ class AppointmentController extends Controller
         } elseif ($user->role === 'sorter') {
             $query->where('sorter_id', $user->sorter->id);
         }
-        // admin sees all
 
-        $appointments = $query->latest()->paginate(15);
-
-        return response()->json($appointments);
+        return response()->json($query->latest()->paginate(15));
     }
 
     public function store(Request $request)
@@ -47,7 +45,6 @@ class AppointmentController extends Controller
             'notes'          => $request->notes,
         ]);
 
-        // Notify the sorter
         $sorterUserId = $appointment->sorter->user_id;
         Notification::create([
             'user_id'        => $sorterUserId,
@@ -55,6 +52,13 @@ class AppointmentController extends Controller
             'message'        => "New appointment booked by {$user->full_name} on {$appointment->scheduled_date} at {$appointment->scheduled_time}.",
             'is_read'        => false,
         ]);
+
+        ActivityLogger::log(
+            action:      'created',
+            description: "{$user->full_name} booked appointment #{$appointment->id} on {$appointment->scheduled_date} at {$appointment->scheduled_time}.",
+            modelType:   'Appointment',
+            modelId:     $appointment->id,
+        );
 
         return response()->json($appointment->load('farmer.user', 'sorter.user'), 201);
     }
@@ -78,7 +82,17 @@ class AppointmentController extends Controller
             'notes'          => 'nullable|string',
         ]);
 
+        $old = $appointment->only('scheduled_date', 'scheduled_time', 'notes');
         $appointment->update($request->only('scheduled_date', 'scheduled_time', 'notes'));
+        $new = $appointment->only('scheduled_date', 'scheduled_time', 'notes');
+
+        ActivityLogger::log(
+            action:      'updated',
+            description: "{$request->user()->full_name} updated appointment #{$appointment->id}.",
+            modelType:   'Appointment',
+            modelId:     $appointment->id,
+            changes:     ['before' => $old, 'after' => $new],
+        );
 
         return response()->json($appointment->fresh()->load('farmer.user', 'sorter.user'));
     }
@@ -87,7 +101,16 @@ class AppointmentController extends Controller
     {
         $this->authorizeAppointment($appointment);
         abort_if($appointment->status === 'completed', 422, 'Completed appointments cannot be deleted.');
+
+        ActivityLogger::log(
+            action:      'deleted',
+            description: request()->user()->full_name . " cancelled appointment #{$appointment->id} scheduled on {$appointment->scheduled_date}.",
+            modelType:   'Appointment',
+            modelId:     $appointment->id,
+        );
+
         $appointment->delete();
+
         return response()->json(['message' => 'Appointment cancelled.']);
     }
 
@@ -100,15 +123,23 @@ class AppointmentController extends Controller
         $user = $request->user();
         abort_if($user->role === 'farmer', 403, 'Farmers cannot change appointment status.');
 
+        $oldStatus = $appointment->status;
         $appointment->update(['status' => $request->status]);
 
-        // Notify the farmer
         Notification::create([
             'user_id'        => $appointment->farmer->user_id,
             'appointment_id' => $appointment->id,
             'message'        => "Your appointment on {$appointment->scheduled_date} has been {$request->status}.",
             'is_read'        => false,
         ]);
+
+        ActivityLogger::log(
+            action:      'status_changed',
+            description: "{$user->full_name} changed appointment #{$appointment->id} status from {$oldStatus} to {$request->status}.",
+            modelType:   'Appointment',
+            modelId:     $appointment->id,
+            changes:     ['before' => ['status' => $oldStatus], 'after' => ['status' => $request->status]],
+        );
 
         return response()->json($appointment->fresh()->load('farmer.user', 'sorter.user'));
     }

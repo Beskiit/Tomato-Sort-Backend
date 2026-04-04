@@ -8,6 +8,7 @@ use App\Http\Controllers\API\SortingSessionController;
 use App\Http\Controllers\API\SortingLogController;
 use App\Http\Controllers\API\NotificationController;
 use App\Http\Controllers\API\DashboardController;
+use App\Http\Controllers\API\ActivityLogController;
 
 /*
 |--------------------------------------------------------------------------
@@ -57,6 +58,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
     Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead']);
 
+    Route::get('/activity-logs', [ActivityLogController::class, 'index']);
+    Route::get('/activity-logs/{activityLog}', [ActivityLogController::class, 'show']);
     // Available sorters (accessible by farmers)
     Route::get('/sorters', [UserController::class, 'sorters']);
 });
