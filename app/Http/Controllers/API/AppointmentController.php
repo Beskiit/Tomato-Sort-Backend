@@ -14,6 +14,8 @@ class AppointmentController extends Controller
     {
         $user  = $request->user();
         $query = Appointment::with(['farmer.user', 'sorter.user', 'sortingSession']);
+        $perPage = (int) $request->integer('per_page', 15);
+        $perPage = max(1, min($perPage, 200));
 
         if ($user->role === 'farmer') {
             $query->where('farmer_id', $user->farmer->id);
@@ -21,7 +23,15 @@ class AppointmentController extends Controller
             $query->where('sorter_id', $user->sorter->id);
         }
 
-        return response()->json($query->latest()->paginate(15));
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status'));
+        }
+
+        if ($request->boolean('has_session')) {
+            $query->whereHas('sortingSession');
+        }
+
+        return response()->json($query->latest()->paginate($perPage));
     }
 
     public function store(Request $request)
