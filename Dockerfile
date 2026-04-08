@@ -22,4 +22,6 @@ RUN composer install --no-dev --optimize-autoloader
 
 EXPOSE $PORT
 
-CMD php artisan config:cache && php artisan route:cache && php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT
+# Keep runtime startup minimal for free-tier cold starts.
+# Run migrations/seed as a separate manual step, not at container boot.
+CMD php artisan serve --host=0.0.0.0 --port=$PORT
