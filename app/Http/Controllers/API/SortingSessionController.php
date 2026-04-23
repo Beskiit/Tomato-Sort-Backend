@@ -16,6 +16,16 @@ class SortingSessionController extends Controller
         );
     }
 
+    public function pending(string $piId)
+    {
+        $session = SortingSession::where('raspberry_pi_id', $piId)
+            ->where('session_status', 'in_progress')
+            ->with('appointment')
+            ->first();
+
+        return response()->json($session); // returns null if nothing pending
+    }
+
     public function store(Request $request, Appointment $appointment)
     {
         abort_if($appointment->status !== 'confirmed', 422, 'Appointment must be confirmed before starting a session.');
@@ -24,6 +34,11 @@ class SortingSessionController extends Controller
         $request->validate([
             'raspberry_pi_id' => 'required|string|max:50',
         ]);
+
+        // Close any stale in_progress sessions for this Pi before creating a new one.
+        SortingSession::where('raspberry_pi_id', $request->raspberry_pi_id)
+            ->where('session_status', 'in_progress')
+            ->update(['session_status' => 'completed']);
 
         $session = SortingSession::create([
             'appointment_id'  => $appointment->id,

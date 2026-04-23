@@ -47,6 +47,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/sessions/{session}/complete', [SortingSessionController::class, 'complete']);
     });
 
+    // Sorting sessions (sorter + admin)
+    Route::middleware('role:sorter,admin')->group(function () {
+        Route::get('/sessions/pending/{piId}', [SortingSessionController::class, 'pending']); // before apiResource
+        Route::apiResource('appointments.sessions', SortingSessionController::class)->shallow();
+        Route::post('/sessions/{session}/complete', [SortingSessionController::class, 'complete']);
+    });
+
     // Sorting logs (created by Raspberry Pi / sorter)
     Route::middleware('role:sorter,admin')->group(function () {
         Route::apiResource('sessions.logs', SortingLogController::class)
